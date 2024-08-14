@@ -22,7 +22,7 @@ namespace AzureAutomationStarter
             Environment.SetEnvironmentVariable("AZURE_CLIENT_ID", config["AZURE_CLIENT_ID"]);
             Environment.SetEnvironmentVariable("AZURE_CLIENT_SECRET", config["AZURE_CLIENT_SECRET"]);
 
-            ArmClient client = new ArmClient(new DefaultAzureCredential());
+            ArmClient client = new ArmClient(new DefaultAzureCredential(true)); // Enable interactive as well
             
             var automationAcc = client.GetAutomationAccountResource(new ResourceIdentifier(config["automationAccount"]));
             var automationJobs = automationAcc.GetAutomationJobs();
@@ -37,7 +37,7 @@ namespace AzureAutomationStarter
             jobParameters.Parameters.Add("displayName", "MM Team No 26");
             jobParameters.Parameters.Add("alias", alias);
             jobParameters.Parameters.Add("teamDescription", "MM Team No 26 Descr");
-            jobParameters.Parameters.Add("teamOwner", "Markus@mmoeller.onmicrosoft.com");
+            jobParameters.Parameters.Add("teamOwner", config["teamOwner"]);
 
             var automationJob = automationJobs.CreateOrUpdate(Azure.WaitUntil.Started, $"Creation of {alias}", jobParameters);
 
