@@ -50,20 +50,17 @@ namespace AzureAutomationStarter
                 if (newAutomationJob.Value.Data.Status == AutomationJobStatus.Completed)
                 {
                     Console.WriteLine($"Job Ended {automationJob.Value.Id}");
-                    break;
-                        
+                    break;   
                 }
                 if (newAutomationJob.Value.Data.Status == AutomationJobStatus.Failed ||
                     newAutomationJob.Value.Data.Status == AutomationJobStatus.Stopped)
                 {
-                    Console.WriteLine($"Job Ended unsuccesful {automationJob.Value.Id}");
+                    Console.WriteLine($"Job Ended unsuccesfully {automationJob.Value.Id}");
                     break;
-
                 }
                 count++;
                 Thread.Sleep(30000);
             }
-            
             Console.ReadLine();
         }
     }

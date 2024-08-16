@@ -10,7 +10,7 @@ namespace AzureAutomationStarterRest
 {
     internal class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {
             var builder = new ConfigurationBuilder();
             builder.SetBasePath(Directory.GetCurrentDirectory())
@@ -19,18 +19,19 @@ namespace AzureAutomationStarterRest
             IConfiguration config = builder.Build();
 
             var tokenCredential = new DefaultAzureCredential(true);
-            var accessToken = tokenCredential.GetToken(new Azure.Core.TokenRequestContext(["https://management.azure.com/user_impersonation"])).Token;
-            Console.WriteLine($"Token: {accessToken}");
+            var accessToken = await tokenCredential.GetTokenAsync(new Azure.Core.TokenRequestContext(["https://management.azure.com/user_impersonation"]));
+            Console.WriteLine($"Token: {accessToken.Token}");
 
             HttpClient client = new HttpClient();
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken.Token);
             string accUrl = $"https://management.azure.com/subscriptions/{config["subscriptionID"]}/resourceGroups/{config["resourceGroupID"]}/providers/Microsoft.Automation/automationAccounts/{config["automationAccount"]}?api-version=2023-11-01";
             client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-            var automationAccountResult = client.GetFromJsonAsync<AutomationAccount>(accUrl).Result; // Task
 
+            // Not nesselarily needed here
+            var automationAccountResult = await client.GetFromJsonAsync<AutomationAccount>(accUrl);
             Console.WriteLine(automationAccountResult.id);
 
-            string groupAlias = "MMTeamNo30";
+            string groupAlias = "MMTeamNo32";
             JobStartRequest request = new JobStartRequest()
             {
                 properties = new JobProperties()
@@ -42,8 +43,8 @@ namespace AzureAutomationStarterRest
                     parameters = new JobParameters()
                     {
                         groupAlias = groupAlias,
-                        displayName = "MM Team No 30",
-                        teamDescription = "MM Team No 30S Descr",
+                        displayName = "MM Team No 32",
+                        teamDescription = "MM Team No 32 Descr",
                         teamOwner = config["teamOwner"]
                     },
                     runOn = ""
@@ -53,25 +54,25 @@ namespace AzureAutomationStarterRest
 
             string jobStartUrl = $"https://management.azure.com/subscriptions/{config["subscriptionID"]}/resourceGroups/{config["resourceGroupID"]}/providers/Microsoft.Automation/automationAccounts/{config["automationAccount"]}/jobs/Creation{groupAlias}?api-version=2023-11-01";
 
-            var req = new HttpRequestMessage(HttpMethod.Put, jobStartUrl);
-            req.Content = new StringContent(jsonRequest, Encoding.UTF8);
-            req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            var jobStartReq = new HttpRequestMessage(HttpMethod.Put, jobStartUrl);
+            jobStartReq.Content = new StringContent(jsonRequest, Encoding.UTF8);
+            jobStartReq.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
-            var jobStartResult = client.SendAsync(req).Result;
+            var jobStartResult = await client.SendAsync(jobStartReq);
             jobStartResult.EnsureSuccessStatusCode();
-            var content = jobStartResult.Content.ReadAsStringAsync().Result;
-
+            var jobStartContent = await jobStartResult.Content.ReadAsStringAsync();
+            var createdAutomationJob = JsonSerializer.Deserialize<AutomationJob>(jobStartContent);
+            string jobName = createdAutomationJob.name;
             int count = 0;
             while (count < 10)
             {
-                string jobName = $"Creation{groupAlias}";
                 string jobCheckUrl = $"https://management.azure.com/subscriptions/{config["subscriptionID"]}/resourceGroups/{config["resourceGroupID"]}/providers/Microsoft.Automation/automationAccounts/{config["automationAccount"]}/jobs/{jobName}?api-version=2023-11-01";
                 var checkReq = new HttpRequestMessage(HttpMethod.Get, jobStartUrl);
-                req.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                jobStartReq.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
-                var jobCheckResult = client.SendAsync(checkReq).Result;
+                var jobCheckResult = await client.SendAsync(checkReq);
                 jobCheckResult.EnsureSuccessStatusCode();
-                var ceckContent = jobCheckResult.Content.ReadAsStringAsync().Result;
+                var ceckContent = await jobCheckResult.Content.ReadAsStringAsync();
                 var newAutomationJob = JsonSerializer.Deserialize<AutomationJob>(ceckContent);
                 if (newAutomationJob.properties.status == "Completed")
                 {
@@ -81,13 +82,12 @@ namespace AzureAutomationStarterRest
                 if (newAutomationJob.properties.status == "Failed" ||
                     newAutomationJob.properties.status == "Stopped")
                 {
-                    Console.WriteLine($"Job Ended unsuccesful {newAutomationJob.properties.jobId}");
+                    Console.WriteLine($"Job Ended unsuccesfully {newAutomationJob.properties.jobId}");
                     break;
                 }
                 count++;
                 Thread.Sleep(30000);
             }
-
             Console.ReadLine();
         }
     }
